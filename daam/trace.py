@@ -32,7 +32,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
         h = (pipeline.unet.config.sample_size * pipeline.vae_scale_factor)
         self.latent_hw = 4096 if h == 512 else 9216  # 64x64 or 96x96 depending on if it's 2.0-v or 2.0
         locate_middle = load_heads or save_heads
-        self.locator = UNetCrossAttentionLocator(restrict={0} if low_memory else None, locate_middle_block=locate_middle)
+        self.locator = UNetCrossAttentionLocator(restrict={0} if low_memory else None, locate_middle_block=locate_middle, is_controlnet=True)
         self.last_prompt: str = ''
         self.last_image: Image = None
         self.time_idx = 0
@@ -47,7 +47,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
                 load_heads=load_heads,
                 save_heads=save_heads,
                 data_dir=data_dir
-            ) for idx, x in enumerate(self.locator.locate(pipeline.unet))
+            ) for idx, x in enumerate(self.locator.locate(pipeline.controlnet)) #for idx, x in enumerate(self.locator.locate(pipeline.unet))
         ]
 
         modules.append(PipelineHooker(pipeline, self))
@@ -107,6 +107,7 @@ class DiffusionHeatMapHooker(AggregateHooker):
 
         with auto_autocast(dtype=torch.float32):
             for (factor, layer, head), heat_map in heat_maps:
+                print(factor, layer, head)
                 if factor in factors and (head_idx is None or head_idx == head) and (layer_idx is None or layer_idx == layer):
                     heat_map = heat_map.unsqueeze(1)
                     # The clamping fixes undershoot.

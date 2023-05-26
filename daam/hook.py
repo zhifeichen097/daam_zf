@@ -83,10 +83,11 @@ class AggregateHooker(ObjectHooker[ModuleListType]):
 
 
 class UNetCrossAttentionLocator(ModuleLocator[CrossAttention]):
-    def __init__(self, restrict: bool = None, locate_middle_block: bool = False):
+    def __init__(self, restrict: bool = None, locate_middle_block: bool = False, is_controlnet: bool = False):
         self.restrict = restrict
         self.layer_names = []
         self.locate_middle_block = locate_middle_block
+        self.is_controlnet = is_controlnet
 
     def locate(self, model: UNet2DConditionModel) -> List[CrossAttention]:
         """
@@ -100,14 +101,21 @@ class UNetCrossAttentionLocator(ModuleLocator[CrossAttention]):
         """
         self.layer_names.clear()
         blocks_list = []
-        up_names = ['up'] * len(model.up_blocks)
-        down_names = ['down'] * len(model.up_blocks)
+        if not self.is_controlnet:
+            up_names = ['up'] * len(model.up_blocks)
+        #down_names = ['down'] * len(model.up_blocks)
+        down_names = ['down'] * len(model.down_blocks)
 
-        for unet_block, name in itertools.chain(
+        all_blocks = itertools.chain(
                 zip(model.up_blocks, up_names),
                 zip(model.down_blocks, down_names),
                 zip([model.mid_block], ['mid']) if self.locate_middle_block else [],
-        ):
+        ) if not self.is_controlnet else itertools.chain(
+                zip(model.down_blocks, down_names),
+                zip([model.mid_block], ['mid']) if self.locate_middle_block else [],
+        )
+
+        for unet_block, name in all_blocks:
             if 'CrossAttn' in unet_block.__class__.__name__:
                 blocks = []
 
